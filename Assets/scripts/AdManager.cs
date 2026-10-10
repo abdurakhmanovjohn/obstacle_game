@@ -15,6 +15,16 @@ public class AdManager : MonoBehaviour
     [SerializeField] string interstitialAdUnitId = "YOUR_INTERSTITIAL_ID";
     [SerializeField] string bannerAdUnitId = "YOUR_BANNER_ID";
 
+    [Header("Debug")]
+    [Tooltip("Shows the ad status in the top-right corner of the screen. Turn off before release.")]
+    [SerializeField] bool showAdStatus = true;
+
+    string initStatus = "init: waiting";
+    string rewardedStatus = "rewarded: -";
+    string interstitialStatus = "interstitial: -";
+    string bannerStatus = "banner: -";
+    GUIStyle statusStyle;
+
     Action onRewarded;
     Action onRewardFailed;
     Action onInterstitialDone;
@@ -29,6 +39,26 @@ public class AdManager : MonoBehaviour
     void Start()
     {
         PlatformInit();
+    }
+
+    void Log(ref string field, string text)
+    {
+        field = text;
+        Debug.Log("[Ads] " + text);
+    }
+
+    void OnGUI()
+    {
+        if (!showAdStatus) return;
+        if (statusStyle == null)
+        {
+            statusStyle = new GUIStyle(GUI.skin.label);
+            statusStyle.fontSize = Mathf.Max(14, Screen.height / 45);
+            statusStyle.alignment = TextAnchor.UpperRight;
+            statusStyle.normal.textColor = Color.yellow;
+        }
+        string text = initStatus + "\n" + rewardedStatus + "\n" + interstitialStatus + "\n" + bannerStatus;
+        GUI.Label(new Rect(Screen.width - 820, 10, 800, 300), text, statusStyle);
     }
 
     // ===== Public API (the game calls this) =====
@@ -86,40 +116,58 @@ public class AdManager : MonoBehaviour
 
     void PlatformInit()
     {
-        LevelPlay.OnInitSuccess += OnLevelPlayReady;
-        LevelPlay.OnInitFailed += err => Debug.Log("[Ads] Init failed: " + err);
-        LevelPlay.Init(appKey);
+        try
+        {
+            LevelPlay.OnInitSuccess += OnLevelPlayReady;
+            LevelPlay.OnInitFailed += err => Log(ref initStatus, "init FAILED: " + err);
+            Log(ref initStatus, "init: starting (key " + appKey + ")");
+            LevelPlay.SetAdaptersDebug(true);
+            LevelPlay.Init(appKey);
+            Invoke(nameof(InitTimeoutCheck), 20f);
+        }
+        catch (Exception e)
+        {
+            Log(ref initStatus, "init CRASH: " + e.GetType().Name + " " + e.Message);
+        }
+    }
+
+    void InitTimeoutCheck()
+    {
+        if (initStatus.StartsWith("init: starting"))
+            Log(ref initStatus, "init: no answer after 20s (internet/SDK problem)");
     }
 
     void OnLevelPlayReady(LevelPlayConfiguration config)
     {
+        Log(ref initStatus, "init: OK");
         CreateBanner(); // the banner shows up as soon as the SDK is ready
 
         rewardedAd = new LevelPlayRewardedAd(rewardedAdUnitId);
         rewardedAd.OnAdRewarded += (info, reward) => rewardEarned = true;
         rewardedAd.OnAdClosed += info => OnRewardedClosed();
         rewardedAd.OnAdDisplayFailed += (info, err) => OnRewardedClosed();
-        rewardedAd.OnAdLoadFailed += err =>
-            Debug.Log("[Ads] Rewarded load failed: " + err);
+        rewardedAd.OnAdLoaded += info => Log(ref rewardedStatus, "rewarded: READY");
+        rewardedAd.OnAdLoadFailed += err => Log(ref rewardedStatus, "rewarded load failed: " + err);
+        Log(ref rewardedStatus, "rewarded: loading...");
         rewardedAd.LoadAd();
 
         interstitialAd = new LevelPlayInterstitialAd(interstitialAdUnitId);
         interstitialAd.OnAdClosed += info => OnInterstitialClosed();
         interstitialAd.OnAdDisplayFailed += (info, err) => OnInterstitialClosed();
-        interstitialAd.OnAdLoadFailed += err =>
-            Debug.Log("[Ads] Interstitial load failed: " + err);
+        interstitialAd.OnAdLoaded += info => Log(ref interstitialStatus, "interstitial: READY");
+        interstitialAd.OnAdLoadFailed += err => Log(ref interstitialStatus, "interstitial load failed: " + err);
+        Log(ref interstitialStatus, "interstitial: loading...");
         interstitialAd.LoadAd();
     }
 
     void CreateBanner()
     {
-        // Bottom center, 320x50. displayOnLoad is true by default:
-        // the banner shows by itself as soon as it has loaded.
-        bannerAd = new LevelPlayBannerAd(bannerAdUnitId, LevelPlayAdSize.BANNER,
-            LevelPlayBannerPosition.BottomCenter);
-        bannerAd.OnAdLoaded += info => Debug.Log("[Ads] Banner loaded");
-        bannerAd.OnAdLoadFailed += err =>
-            Debug.Log("[Ads] Banner load failed: " + err);
+        // Default banner (SDK 9.x): 320x50 at the bottom center, displayOnLoad = true,
+        // so it shows by itself as soon as it has loaded.
+        bannerAd = new LevelPlayBannerAd(bannerAdUnitId);
+        bannerAd.OnAdLoaded += info => Log(ref bannerStatus, "banner: loaded");
+        bannerAd.OnAdLoadFailed += err => Log(ref bannerStatus, "banner load failed: " + err);
+        Log(ref bannerStatus, "banner: loading...");
         bannerAd.LoadAd();
     }
 
@@ -127,6 +175,7 @@ public class AdManager : MonoBehaviour
     {
         if (rewardEarned) GrantReward(); else FailReward();
         rewardEarned = false;
+        Log(ref rewardedStatus, "rewarded: loading next...");
         rewardedAd.LoadAd();
     }
 
@@ -170,7 +219,7 @@ public class AdManager : MonoBehaviour
     // ===== Editor and PC: stub =====
     void PlatformInit()
     {
-        Debug.Log("[Ads] Editor stub: ads are not shown");
+        Log(ref initStatus, "editor stub: no real ads");
     }
 
     bool PlatformIsRewardedReady() { return true; }

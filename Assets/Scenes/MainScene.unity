@@ -4949,10 +4949,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ffd443f4cc6b4f4ba5240966455e979, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AdManager
-  appKey: YOUR_APP_KEY
-  rewardedAdUnitId: YOUR_REWARDED_ID
-  interstitialAdUnitId: YOUR_INTERSTITIAL_ID
-  bannerAdUnitId: YOUR_BANNER_ID
+  appKey: 28a083de5
+  rewardedAdUnitId: or0sdswokpyn0pat
+  interstitialAdUnitId: qyadd016zcdsfehc
+  bannerAdUnitId: n7xatygqiu3ntn1q
 --- !u!1 &1307432282
 GameObject:
   m_ObjectHideFlags: 0
@@ -6895,7 +6895,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TouchControls
   buttonSize: 100
   gap: 10
-  margin: 40
+  margin: 150
   showOnPC: 0
 --- !u!114 &1892383813
 MonoBehaviour:
