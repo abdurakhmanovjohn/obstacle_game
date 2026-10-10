@@ -1,12 +1,13 @@
 using UnityEngine;
- 
+
 public class ObjectHit : MonoBehaviour
 {
-    private void OnCollisionEnter(Collision other) 
+    private void OnCollisionEnter(Collision other)
     {
-        if (other.gameObject.tag == "Player")
+        if (other.gameObject.tag == "Player" && gameObject.tag != "Hit")
         {
-        GetComponent<MeshRenderer>().material.color = Color.black;
+            other.gameObject.GetComponent<Scorer>().AddHit();
+            GetComponent<MeshRenderer>().material.color = Color.black;
             gameObject.tag = "Hit";
         }
     }
