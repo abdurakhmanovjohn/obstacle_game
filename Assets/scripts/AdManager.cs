@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Runtime.InteropServices;
 using UnityEngine;
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -147,7 +148,11 @@ public class AdManager : MonoBehaviour
         rewardedAd.OnAdClosed += info => OnRewardedClosed();
         rewardedAd.OnAdDisplayFailed += (info, err) => OnRewardedClosed();
         rewardedAd.OnAdLoaded += info => Log(ref rewardedStatus, "rewarded: READY");
-        rewardedAd.OnAdLoadFailed += err => Log(ref rewardedStatus, "rewarded load failed: " + err);
+        rewardedAd.OnAdLoadFailed += err =>
+        {
+            Log(ref rewardedStatus, "rewarded load failed, retry in " + retryDelay + "s: " + err);
+            StartCoroutine(RetryLoad(() => rewardedAd.LoadAd()));
+        };
         Log(ref rewardedStatus, "rewarded: loading...");
         rewardedAd.LoadAd();
 
@@ -155,9 +160,23 @@ public class AdManager : MonoBehaviour
         interstitialAd.OnAdClosed += info => OnInterstitialClosed();
         interstitialAd.OnAdDisplayFailed += (info, err) => OnInterstitialClosed();
         interstitialAd.OnAdLoaded += info => Log(ref interstitialStatus, "interstitial: READY");
-        interstitialAd.OnAdLoadFailed += err => Log(ref interstitialStatus, "interstitial load failed: " + err);
+        interstitialAd.OnAdLoadFailed += err =>
+        {
+            Log(ref interstitialStatus, "interstitial load failed, retry in " + retryDelay + "s: " + err);
+            StartCoroutine(RetryLoad(() => interstitialAd.LoadAd()));
+        };
         Log(ref interstitialStatus, "interstitial: loading...");
         interstitialAd.LoadAd();
+    }
+
+    // When an ad fails to load (e.g. 509 "No fill"), try again after a pause.
+    // WaitForSecondsRealtime keeps counting even while the game is frozen (Game Over).
+    const float retryDelay = 15f;
+
+    IEnumerator RetryLoad(Action load)
+    {
+        yield return new WaitForSecondsRealtime(retryDelay);
+        load();
     }
 
     void CreateBanner()
@@ -166,7 +185,11 @@ public class AdManager : MonoBehaviour
         // so it shows by itself as soon as it has loaded.
         bannerAd = new LevelPlayBannerAd(bannerAdUnitId);
         bannerAd.OnAdLoaded += info => Log(ref bannerStatus, "banner: loaded");
-        bannerAd.OnAdLoadFailed += err => Log(ref bannerStatus, "banner load failed: " + err);
+        bannerAd.OnAdLoadFailed += err =>
+        {
+            Log(ref bannerStatus, "banner load failed, retry in " + retryDelay + "s: " + err);
+            StartCoroutine(RetryLoad(() => bannerAd.LoadAd()));
+        };
         Log(ref bannerStatus, "banner: loading...");
         bannerAd.LoadAd();
     }
