@@ -4953,6 +4953,11 @@ MonoBehaviour:
   rewardedAdUnitId: or0sdswokpyn0pat
   interstitialAdUnitId: qyadd016zcdsfehc
   bannerAdUnitId: n7xatygqiu3ntn1q
+  iosAppKey: 28ac5ea45
+  iosRewardedAdUnitId: esr8u05ikt3uhont
+  iosInterstitialAdUnitId: xh9wlzzqh8v6nxtk
+  iosBannerAdUnitId: 1ga85rh64ouqe6yw
+  showAdStatus: 1
 --- !u!1 &1307432282
 GameObject:
   m_ObjectHideFlags: 0

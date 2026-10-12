@@ -2,19 +2,41 @@ using System;
 using System.Collections;
 using System.Runtime.InteropServices;
 using UnityEngine;
-#if UNITY_ANDROID && !UNITY_EDITOR
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
 using Unity.Services.LevelPlay;
+#endif
+#if UNITY_IOS && !UNITY_EDITOR
+using Unity.Advertisement.IosSupport;
 #endif
 
 public class AdManager : MonoBehaviour
 {
     public static AdManager Instance { get; private set; }
 
-    [Header("LevelPlay (Android only)")]
+    [Header("LevelPlay - Android")]
     [SerializeField] string appKey = "YOUR_APP_KEY";
     [SerializeField] string rewardedAdUnitId = "YOUR_REWARDED_ID";
     [SerializeField] string interstitialAdUnitId = "YOUR_INTERSTITIAL_ID";
     [SerializeField] string bannerAdUnitId = "YOUR_BANNER_ID";
+
+    [Header("LevelPlay - iOS")]
+    [SerializeField] string iosAppKey = "YOUR_IOS_APP_KEY";
+    [SerializeField] string iosRewardedAdUnitId = "YOUR_IOS_REWARDED_ID";
+    [SerializeField] string iosInterstitialAdUnitId = "YOUR_IOS_INTERSTITIAL_ID";
+    [SerializeField] string iosBannerAdUnitId = "YOUR_IOS_BANNER_ID";
+
+    // Picks the right keys for the platform we are built for.
+#if UNITY_IOS
+    string AppKey => iosAppKey;
+    string RewardedId => iosRewardedAdUnitId;
+    string InterstitialId => iosInterstitialAdUnitId;
+    string BannerId => iosBannerAdUnitId;
+#else
+    string AppKey => appKey;
+    string RewardedId => rewardedAdUnitId;
+    string InterstitialId => interstitialAdUnitId;
+    string BannerId => bannerAdUnitId;
+#endif
 
     [Header("Debug")]
     [Tooltip("Shows the ad status in the top-right corner of the screen. Turn off before release.")]
@@ -108,8 +130,8 @@ public class AdManager : MonoBehaviour
         a?.Invoke();
     }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-    // ===== Android: Unity LevelPlay =====
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+    // ===== Android and iOS: Unity LevelPlay =====
     LevelPlayRewardedAd rewardedAd;
     LevelPlayInterstitialAd interstitialAd;
     LevelPlayBannerAd bannerAd;
@@ -117,13 +139,44 @@ public class AdManager : MonoBehaviour
 
     void PlatformInit()
     {
+#if UNITY_IOS
+        StartCoroutine(AskTrackingThenInit());
+#else
+        InitLevelPlay();
+#endif
+    }
+
+#if UNITY_IOS
+    // iOS: ask "Allow this app to track you?" first, then start LevelPlay.
+    IEnumerator AskTrackingThenInit()
+    {
+        var notDetermined = ATTrackingStatusBinding.AuthorizationTrackingStatus.NOT_DETERMINED;
+        if (ATTrackingStatusBinding.GetAuthorizationTrackingStatus() == notDetermined)
+        {
+            Log(ref initStatus, "init: asking tracking permission...");
+            ATTrackingStatusBinding.RequestAuthorizationTracking();
+            float waited = 0f;
+            while (ATTrackingStatusBinding.GetAuthorizationTrackingStatus() == notDetermined && waited < 60f)
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+        // Printed in the Xcode console: copy it into LevelPlay -> Setup -> Test devices.
+        Debug.Log("[Ads] IDFA: " + UnityEngine.iOS.Device.advertisingIdentifier);
+        InitLevelPlay();
+    }
+#endif
+
+    void InitLevelPlay()
+    {
         try
         {
             LevelPlay.OnInitSuccess += OnLevelPlayReady;
             LevelPlay.OnInitFailed += err => Log(ref initStatus, "init FAILED: " + err);
-            Log(ref initStatus, "init: starting (key " + appKey + ")");
+            Log(ref initStatus, "init: starting (key " + AppKey + ")");
             LevelPlay.SetAdaptersDebug(true);
-            LevelPlay.Init(appKey);
+            LevelPlay.Init(AppKey);
             Invoke(nameof(InitTimeoutCheck), 20f);
         }
         catch (Exception e)
@@ -143,7 +196,7 @@ public class AdManager : MonoBehaviour
         Log(ref initStatus, "init: OK");
         CreateBanner(); // the banner shows up as soon as the SDK is ready
 
-        rewardedAd = new LevelPlayRewardedAd(rewardedAdUnitId);
+        rewardedAd = new LevelPlayRewardedAd(RewardedId);
         rewardedAd.OnAdRewarded += (info, reward) => rewardEarned = true;
         rewardedAd.OnAdClosed += info => OnRewardedClosed();
         rewardedAd.OnAdDisplayFailed += (info, err) => OnRewardedClosed();
@@ -156,7 +209,7 @@ public class AdManager : MonoBehaviour
         Log(ref rewardedStatus, "rewarded: loading...");
         rewardedAd.LoadAd();
 
-        interstitialAd = new LevelPlayInterstitialAd(interstitialAdUnitId);
+        interstitialAd = new LevelPlayInterstitialAd(InterstitialId);
         interstitialAd.OnAdClosed += info => OnInterstitialClosed();
         interstitialAd.OnAdDisplayFailed += (info, err) => OnInterstitialClosed();
         interstitialAd.OnAdLoaded += info => Log(ref interstitialStatus, "interstitial: READY");
@@ -183,7 +236,7 @@ public class AdManager : MonoBehaviour
     {
         // Default banner (SDK 9.x): 320x50 at the bottom center, displayOnLoad = true,
         // so it shows by itself as soon as it has loaded.
-        bannerAd = new LevelPlayBannerAd(bannerAdUnitId);
+        bannerAd = new LevelPlayBannerAd(BannerId);
         bannerAd.OnAdLoaded += info => Log(ref bannerStatus, "banner: loaded");
         bannerAd.OnAdLoadFailed += err =>
         {
